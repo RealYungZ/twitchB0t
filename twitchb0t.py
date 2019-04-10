@@ -1,3 +1,4 @@
+'''to make pylint happy again'''
 import time
 import socket
 import platform
@@ -9,12 +10,12 @@ from links import Links
 
 def get_info():
     '''gets oauth token from file'''
-    with open(info_path) as file:
+    with open(INFO_PATH) as file:
         return file.readlines()[0].rstrip()
 
 def get_rand_clip():
     '''gets a random line from clips.txt'''
-    with open(clips_path, "r") as file:
+    with open(CLIPS_PATH, "r") as file:
         lines = file.readlines()
         return lines[randint(0, len(lines) - 1)]
 
@@ -50,7 +51,7 @@ def get_fort_stats(epic_id):
 
 def send_message(msg):
     '''sends a message to twitch chat'''
-    s.send(bytes("PRIVMSG #" + NICK + " :" + msg + "\r\n", "UTF-8"))
+    sock.send(bytes("PRIVMSG #" + NICK + " :" + msg + "\r\n", "UTF-8"))
 
 def stats_command(msg):
     user = msg.replace("!stats", "")
@@ -86,108 +87,113 @@ def retweet_command():
 
 def uptime_command():
     new_time = time.time()
-    uptime = time.strftime("%H hours %M minutes", time.gmtime(new_time - start_time))
+    uptime = time.strftime("%H hours %M minutes", time.gmtime(new_time - START_TIME))
     send_message("RealYungZ has been live for " + uptime)
 
-def lovemeter_command(msg, name):
+def lovemeter_command(msg, uname):
     name = msg.replace("!lovemeter", "")
     if name.startswith(" ") and len(name) > 2:
         name = name[1:]
-        send_message(name + " is " + str(randint(0, 100)) + "% in love with " + name)
+        send_message(uname + " is " + str(randint(0, 100)) + "% in love with " + name)
     else:
         send_message("ERROR - incorrect format: !lovemeter <anything>")
 
 def check_mod(name):
+    '''checks for mod on a given twitch username'''
     req = get("http://tmi.twitch.tv/group/user/realyungz/chatters").json()
     if name in req['chatters']['moderators']:
         return True
     return False
 
-def handle_viewer_command(name, message):
-    if message.startswith("!stats"):
-        stats_command(message)
-    elif message.startswith("!randclip"):
+def handle_viewer_command(name, msg):
+    '''determines the command used, then runs the neccessary funtion'''
+    if msg.startswith("!stats"):
+        stats_command(msg)
+    elif msg.startswith("!randclip"):
         randclip_command()
-    elif message.startswith("!followage"):
-        followage_command(message, name)
-    elif message.startswith("!retweet"):
+    elif msg.startswith("!followage"):
+        followage_command(msg, name)
+    elif msg.startswith("!retweet"):
         retweet_command()
-    elif message.startswith("!uptime"):
+    elif msg.startswith("!uptime"):
         uptime_command()
-    elif message.startswith("!lovemeter"):
-        lovemeter_command(message, name)
-    elif message.startswith("!sub"):
+    elif msg.startswith("!lovemeter"):
+        lovemeter_command(msg, name)
+    elif msg.startswith("!sub"):
         send_message(Links.SUB)
-    elif message.startswith("!tip"):
+    elif msg.startswith("!tip"):
         send_message(Links.TIP)
-    elif message.startswith("!discord"):
+    elif msg.startswith("!discord"):
         send_message(Links.DISCORD)
-    elif message.startswith("!twitter"):
+    elif msg.startswith("!twitter"):
         send_message(Links.TWITTER)
-    elif message.startswith("!youtube"):
+    elif msg.startswith("!youtube"):
         send_message(Links.YOUTUBE)
-    elif message.startswith("!keyboard"):
+    elif msg.startswith("!keyboard"):
         send_message(Links.KEYBOARD)
-    elif message.startswith("!mouse"):
+    elif msg.startswith("!mouse"):
         send_message(Links.MOUSE)
-    elif message.startswith("!fortstats"):
+    elif msg.startswith("!fortstats"):
         send_message(Links.FORTSTATS)
-    elif message.startswith("!pc"):
+    elif msg.startswith("!pc"):
         send_message(Links.PC)
-    elif message.startswith("!res"):
+    elif msg.startswith("!res"):
         send_message("1600x1080p")
-    elif message.startswith("!hugme"):
+    elif msg.startswith("!hugme"):
         send_message("/me hugs "+ name)
-    elif message.startswith("!code"):
+    elif msg.startswith("!code"):
         send_message("Code for my twitch bot is here realyuSly " + Links.CODE)
 
-def handle_mod_command(name, message):
+def handle_mod_command(name, msg):
+    '''checks if user is mod, determines command used then runs the neccessary funtion'''
     if check_mod(name):
-        if message.startswith("&amimod"):
+        if msg.startswith("&amimod"):
             send_message("you are a mod realyuSwag")
     else:
         send_message("you is not a mod ResidentSleeper")
 
 def youtube_timer():
+    '''youtube timer for schedule'''
     send_message("Check out my latest youtube video <3 https://www.youtube.com/watch?v=6LX_D-pDfdI")
 
 def discord_timer():
+    '''discord timer for schedule'''
     send_message("come hang in me discord realyuSwag " + Links.DISCORD)
 
-info_path = ""
-clips_path = ""
+INFO_PATH = ""
+CLIPS_PATH = ""
 
-if platform.system() is "Windows":
-    info_path = "C:\\Users\\Angie\\Desktop\\info.txt"
-    clips_path = "C:\\Users\\Angie\\Dev\\twitchb0t\\clips.txt"
+if platform.system() == "Windows":
+    INFO_PATH = "C:\\Users\\Angie\\Desktop\\info.txt"
+    CLIPS_PATH = "C:\\Users\\Angie\\Dev\\twitchb0t\\clips.txt"
 else:
-    info_path = "/mnt/c/Users/Angie/Desktop/info.txt"
-    clips_path = "/mnt/c/Users/Angie/Dev/twitchb0t/clips.txt"
+    INFO_PATH = "/mnt/c/Users/Angie/Desktop/info.txt"
+    CLIPS_PATH = "/mnt/c/Users/Angie/Dev/twitchb0t/clips.txt"
 
 HOST = "irc.twitch.tv"
 PORT = 6667
 NICK = "realyungz"
 PASS = get_info()
-start_time = time.time()
+START_TIME = time.time()
 
 schedule.every(8).to(12).minutes.do(youtube_timer)
 schedule.every(8).to(12).minutes.do(discord_timer)
 
-s = socket.socket()
-s.connect((HOST, PORT))
-s.send(bytes("PASS " + PASS + "\r\n", "UTF-8"))
-s.send(bytes("NICK " + NICK + "\r\n", "UTF-8"))
-s.send(bytes("JOIN #" + NICK + "\r\n", "UTF-8"))
+sock = socket.socket()
+sock.connect((HOST, PORT))
+sock.send(bytes("PASS " + PASS + "\r\n", "UTF-8"))
+sock.send(bytes("NICK " + NICK + "\r\n", "UTF-8"))
+sock.send(bytes("JOIN #" + NICK + "\r\n", "UTF-8"))
 
 
 while True:
-    LINE = str(s.recv(1024))
+    LINE = str(sock.recv(1024))
     if "End of /NAMES list" in LINE:
         print("authenticated")
         break
 
 while True:
-    for line in str(s.recv(1024)).split('\\r\\n'):
+    for line in str(sock.recv(1024)).split('\\r\\n'):
         schedule.run_pending()
         parts = line.split(':')
         if len(parts) < 3:
