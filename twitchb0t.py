@@ -3,10 +3,49 @@ import time
 import socket
 import platform
 from random import randint
+import re
+import dataclasses as dc
+import typing
 import schedule
 from requests import get
 from links import Links
 
+
+@dc.dataclass(frozen=True)
+class Command:
+    '''command class'''
+    name: str
+    expr: str
+    doc: str
+    callback: typing.Callable
+
+
+@dc.dataclass(frozen=True)
+class Bot:
+    name: str
+    commands: dict = dc.field(default_factory=dict)
+
+    def on(self, expr, name=None, doc=None):
+        def decorator(fn):
+            nonlocal name
+            nonlocal doc
+            if name is None:
+                name = expr
+            if doc is None:
+                doc = fn.__doc__ or expr
+            cmd = Command(name, expr, doc, fn)
+            self.commands[name] = cmd
+            return fn
+        return decorator
+
+    def dispatch_message(self, msg, auth):
+        '''checks if a message is indeed a command'''
+        for cmd in self.commands.values():
+            match = re.match(cmd.expr, msg, re.I)
+            if match:
+                cmd.callback(self, match, auth)
+                return True
+        return False
 
 def get_info():
     '''gets oauth token from file'''
@@ -32,6 +71,7 @@ def get_epic_id(user):
     return None
 
 def get_fort_stats(epic_id):
+    '''get fortnite stats based on an epic id'''
     req = request("https://fortnite-public-api.theapinetwork.com/prod09/users/public/br_stats_v2?user_id=" + epic_id)
     print(req)
     if 'overallData' not in req:
@@ -53,51 +93,6 @@ def send_message(msg):
     '''sends a message to twitch chat'''
     sock.send(bytes("PRIVMSG #" + NICK + " :" + msg + "\r\n", "UTF-8"))
 
-def stats_command(msg):
-    user = msg.replace("!stats", "")
-    if user.startswith(" ") and len(user) > 4:
-        user = user[1:]
-        epic_id = get_epic_id(user)
-        if epic_id:
-            stats = get_fort_stats(epic_id)
-            if stats:
-                send_message("WINS: " + str(stats[0]) + ", K/D: " + str(stats[1]) + ", WIN %: " + str(stats[2]))
-            else:
-                send_message("ERROR - user found, but couldn't get stats for some reason ResidentSleeper")
-        else:
-            send_message("ERROR - cannot find username: '" + user + "'")
-    else:
-        send_message("ERROR - incorrect format: !stats <epic-username>")
-
-def randclip_command():
-    send_message("https://clips.twitch.tv/" + get_rand_clip())
-
-def followage_command(msg, user):
-    name = msg.replace("!followage", "")
-    if name.startswith(" ") and len(name) > 4:
-        name = name[1:]
-    else:
-        name = user
-    followage = get("https://api.crunchprank.net/twitch/followage/RealYungZ/" + name + "?precision=3").text
-    send_message(followage)
-
-def retweet_command():
-    req = get("https://api.crunchprank.net/twitter/latest/RealYungZ?no_rts&url").text
-    send_message(req)
-
-def uptime_command():
-    new_time = time.time()
-    uptime = time.strftime("%H hours %M minutes", time.gmtime(new_time - START_TIME))
-    send_message("RealYungZ has been live for " + uptime)
-
-def lovemeter_command(msg, uname):
-    name = msg.replace("!lovemeter", "")
-    if name.startswith(" ") and len(name) > 2:
-        name = name[1:]
-        send_message(uname + " is " + str(randint(0, 100)) + "% in love with " + name)
-    else:
-        send_message("ERROR - incorrect format: !lovemeter <anything>")
-
 def check_mod(name):
     '''checks for mod on a given twitch username'''
     req = get("http://tmi.twitch.tv/group/user/realyungz/chatters").json()
@@ -105,21 +100,17 @@ def check_mod(name):
         return True
     return False
 
-def handle_viewer_command(name, msg):
-    '''determines the command used, then runs the neccessary funtion'''
-    if msg.startswith("!stats"):
-        stats_command(msg)
-    elif msg.startswith("!randclip"):
-        randclip_command()
-    elif msg.startswith("!followage"):
-        followage_command(msg, name)
-    elif msg.startswith("!retweet"):
-        retweet_command()
-    elif msg.startswith("!uptime"):
-        uptime_command()
-    elif msg.startswith("!lovemeter"):
-        lovemeter_command(msg, name)
-    elif msg.startswith("!sub"):
+def youtube_timer():
+    '''youtube timer for schedule'''
+    send_message("Check out my latest youtube video <3 https://www.youtube.com/watch?v=6LX_D-pDfdI")
+
+def discord_timer():
+    '''discord timer for schedule'''
+    send_message("come hang in me discord realyuSwag " + Links.DISCORD)
+
+def handle_viewer_command(msg):
+    '''handle the easy commands'''
+    if msg.startswith("!sub"):
         send_message(Links.SUB)
     elif msg.startswith("!tip"):
         send_message(Links.TIP)
@@ -139,8 +130,6 @@ def handle_viewer_command(name, msg):
         send_message(Links.PC)
     elif msg.startswith("!res"):
         send_message("1600x1080p")
-    elif msg.startswith("!hugme"):
-        send_message("/me hugs "+ name)
     elif msg.startswith("!code"):
         send_message("Code for my twitch bot is here realyuSly " + Links.CODE)
 
@@ -152,13 +141,76 @@ def handle_mod_command(name, msg):
     else:
         send_message("you is not a mod ResidentSleeper")
 
-def youtube_timer():
-    '''youtube timer for schedule'''
-    send_message("Check out my latest youtube video <3 https://www.youtube.com/watch?v=6LX_D-pDfdI")
 
-def discord_timer():
-    '''discord timer for schedule'''
-    send_message("come hang in me discord realyuSwag " + Links.DISCORD)
+bot = Bot("simplebot")
+
+@bot.on("!hugme")
+def handle_hugme(bot, match, auth):
+    '''handle hugme command'''
+    send_message(f"/me hugs {auth}")
+
+@bot.on("!uptime")
+def handle_uptime(bot, match, auth):
+    '''handles returning the uptime'''
+    new_time = time.time()
+    uptime = time.strftime("%H hours %M minutes", time.gmtime(new_time - START_TIME))
+    send_message("RealYungZ has been live for " + uptime)
+
+@bot.on("!retweet")
+def handle_retweet(bot, match, auth):
+    '''gets latest tweet'''
+    req = get("https://api.crunchprank.net/twitter/latest/RealYungZ?no_rts&url").text
+    send_message(req)
+
+@bot.on("!randclip")
+def handle_randclip(bot, match, auth):
+    '''sends a random clip'''
+    send_message("https://clips.twitch.tv/" + get_rand_clip())
+
+@bot.on("!lovemeter\s*(.+)?", name="!lovemeter [anything]")
+def handle_lovemeter(bot, match, auth):
+    '''handles lovemeter command'''
+    name = match.group(1)
+    if name:
+        send_message(auth + " is " + str(randint(0, 100)) + "% in love with " + name)
+    else:
+        send_message("ERROR - incorrect format: !lovemeter <anything>")
+
+@bot.on("!followage\s*(.+)?", name="!followage [user]")
+def handle_followage(bot, match, auth):
+    """get followage time for a twitch user"""
+
+    user = match.group(1)
+    if user:
+        followage = get("https://api.crunchprank.net/twitch/followage/RealYungZ/" + user + "?precision=3").text
+        send_message(followage)
+    else:
+        send_message("ERROR - incorrect format: !followage <username>")
+
+@bot.on("!stats\s*(.+)?", name="!stats [user]")
+def handle_stats(bot, match, auth):
+    """Get the stats for a user"""
+
+    user = match.group(1)
+    if user:
+        epic_id = get_epic_id(user)
+        if epic_id:
+            stats = get_fort_stats(epic_id)
+            if stats:
+                send_message(f"Stats for {user} are: WINS: {str(stats[0])}, K/D: {str(stats[1])}, WIN %: {str(stats[2])}")
+            else:
+                send_message("ERROR - user found, but couldn't get stats for some reason ResidentSleeper")
+        else:
+            send_message(f"ERROR - cannot find username: '{user}'")
+    else:
+        send_message("ERROR - incorrect format: !stats <epic-username>")
+
+@bot.on("^!help$", name="!help")
+def handle_help(bot, match, auth):
+    """Print out the help text for all bot commands"""
+
+    send_message(", ".join(bot.commands))
+
 
 INFO_PATH = ""
 CLIPS_PATH = ""
@@ -205,8 +257,9 @@ while True:
             continue
 
         if message.startswith("!"):
-            username = parts[1].split("!")[0]
-            handle_viewer_command(username, message)
+            author = parts[1].split("!")[0]
+            if not bot.dispatch_message(message, author):
+                handle_viewer_command(message)
         elif message.startswith("&"):
-            username = parts[1].split("!")[0]
-            handle_mod_command(username, message)
+            author = parts[1].split("!")[0]
+            handle_mod_command(author, message)
