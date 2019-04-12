@@ -14,6 +14,7 @@ from links import Links
 @dc.dataclass(frozen=True)
 class Command:
     '''command class'''
+
     name: str
     expr: str
     doc: str
@@ -33,38 +34,50 @@ class Bot:
                 name = expr
             if doc is None:
                 doc = fn.__doc__ or expr
-            cmd = Command(name, expr, doc, fn)
-            self.commands[name] = cmd
+            cmnd = Command(name, expr, doc, fn)
+            self.commands[name] = cmnd
             return fn
         return decorator
 
     def dispatch_message(self, msg, auth):
         '''checks if a message is indeed a command'''
-        for cmd in self.commands.values():
-            match = re.match(cmd.expr, msg, re.I)
+
+        for cmnd in self.commands.values():
+            match = re.match(cmnd.expr, msg, re.I)
             if match:
-                cmd.callback(self, match, auth)
+                cmnd.callback(self, match, auth)
                 return True
         return False
 
+def handle_static(resp):
+    '''sends message if a static command is used'''
+
+    def handler(bot, match, auth):
+        send_message(resp)
+    return handler
+
 def get_info():
     '''gets oauth token from file'''
+
     with open(INFO_PATH) as file:
         return file.readlines()[0].rstrip()
 
 def get_rand_clip():
     '''gets a random line from clips.txt'''
+
     with open(CLIPS_PATH, "r") as file:
         lines = file.readlines()
         return lines[randint(0, len(lines) - 1)]
 
 def request(url):
     '''helper function for get request, returns json'''
+
     req = get(url).json()
     return req
 
 def get_epic_id(user):
     '''function takes an epic username, the accounts user id is returned'''
+
     req = request("https://fortnite-public-api.theapinetwork.com/prod09/users/id?username=" + user)
     if 'uid' in req:
         return req['uid']
@@ -72,6 +85,7 @@ def get_epic_id(user):
 
 def get_fort_stats(epic_id):
     '''get fortnite stats based on an epic id'''
+
     req = request("https://fortnite-public-api.theapinetwork.com/prod09/users/public/br_stats_v2?user_id=" + epic_id)
     print(req)
     if 'overallData' not in req:
@@ -91,10 +105,12 @@ def get_fort_stats(epic_id):
 
 def send_message(msg):
     '''sends a message to twitch chat'''
+
     sock.send(bytes("PRIVMSG #" + NICK + " :" + msg + "\r\n", "UTF-8"))
 
 def check_mod(name):
     '''checks for mod on a given twitch username'''
+
     req = get("http://tmi.twitch.tv/group/user/realyungz/chatters").json()
     if name in req['chatters']['moderators']:
         return True
@@ -102,39 +118,17 @@ def check_mod(name):
 
 def youtube_timer():
     '''youtube timer for schedule'''
+
     send_message("Check out my latest youtube video <3 https://www.youtube.com/watch?v=6LX_D-pDfdI")
 
 def discord_timer():
     '''discord timer for schedule'''
-    send_message("come hang in me discord realyuSwag " + Links.DISCORD)
 
-def handle_viewer_command(msg):
-    '''handle the easy commands'''
-    if msg.startswith("!sub"):
-        send_message(Links.SUB)
-    elif msg.startswith("!tip"):
-        send_message(Links.TIP)
-    elif msg.startswith("!discord"):
-        send_message(Links.DISCORD)
-    elif msg.startswith("!twitter"):
-        send_message(Links.TWITTER)
-    elif msg.startswith("!youtube"):
-        send_message(Links.YOUTUBE)
-    elif msg.startswith("!keyboard"):
-        send_message(Links.KEYBOARD)
-    elif msg.startswith("!mouse"):
-        send_message(Links.MOUSE)
-    elif msg.startswith("!fortstats"):
-        send_message(Links.FORTSTATS)
-    elif msg.startswith("!pc"):
-        send_message(Links.PC)
-    elif msg.startswith("!res"):
-        send_message("1600x1080p")
-    elif msg.startswith("!code"):
-        send_message("Code for my twitch bot is here realyuSly " + Links.CODE)
+    send_message("come hang in me discord realyuSwag " + Links.DISCORD)
 
 def handle_mod_command(name, msg):
     '''checks if user is mod, determines command used then runs the neccessary funtion'''
+
     if check_mod(name):
         if msg.startswith("&amimod"):
             send_message("you are a mod realyuSwag")
@@ -142,11 +136,27 @@ def handle_mod_command(name, msg):
         send_message("you is not a mod ResidentSleeper")
 
 
-bot = Bot("simplebot")
+STATIC_COMMANDS = {
+    "!sub"      : Links.SUB,
+    "!tip"      : Links.TIP,
+    "!discord"  : Links.DISCORD,
+    "!twitter"  : Links.TWITTER,
+    "!youtube"  : Links.YOUTUBE,
+    "!keyboard" : Links.KEYBOARD,
+    "!mouse"    : Links.MOUSE,
+    "!fortstats": Links.FORTSTATS,
+    "!pc"       : Links.PC,
+    "!code"     : Links.CODE
+}
+
+
+bot = Bot("z-bot")
+
 
 @bot.on("!hugme")
 def handle_hugme(bot, match, auth):
     '''handle hugme command'''
+
     send_message(f"/me hugs {auth}")
 
 @bot.on("!uptime")
@@ -170,6 +180,7 @@ def handle_randclip(bot, match, auth):
 @bot.on("!lovemeter\s*(.+)?", name="!lovemeter [anything]")
 def handle_lovemeter(bot, match, auth):
     '''handles lovemeter command'''
+
     name = match.group(1)
     if name:
         send_message(auth + " is " + str(randint(0, 100)) + "% in love with " + name)
@@ -183,9 +194,9 @@ def handle_followage(bot, match, auth):
     user = match.group(1)
     if user:
         followage = get("https://api.crunchprank.net/twitch/followage/RealYungZ/" + user + "?precision=3").text
-        send_message(followage)
     else:
-        send_message("ERROR - incorrect format: !followage <username>")
+        followage = get("https://api.crunchprank.net/twitch/followage/RealYungZ/" + auth + "?precision=3").text
+    send_message(followage)
 
 @bot.on("!stats\s*(.+)?", name="!stats [user]")
 def handle_stats(bot, match, auth):
@@ -197,7 +208,7 @@ def handle_stats(bot, match, auth):
         if epic_id:
             stats = get_fort_stats(epic_id)
             if stats:
-                send_message(f"Stats for {user} are: WINS: {str(stats[0])}, K/D: {str(stats[1])}, WIN %: {str(stats[2])}")
+                send_message(f"Stats for {user} are - WINS: {str(stats[0])}, K/D: {str(stats[1])}, WIN %: {str(stats[2])}")
             else:
                 send_message("ERROR - user found, but couldn't get stats for some reason ResidentSleeper")
         else:
@@ -211,6 +222,9 @@ def handle_help(bot, match, auth):
 
     send_message(", ".join(bot.commands))
 
+for name, response in STATIC_COMMANDS.items():
+    cmd = Command(name, name, "", handle_static(response))
+    bot.commands[name] = cmd
 
 INFO_PATH = ""
 CLIPS_PATH = ""
@@ -256,10 +270,8 @@ while True:
         else:
             continue
 
-        if message.startswith("!"):
-            author = parts[1].split("!")[0]
-            if not bot.dispatch_message(message, author):
-                handle_viewer_command(message)
-        elif message.startswith("&"):
-            author = parts[1].split("!")[0]
+        author = parts[1].split("!")[0]
+        bot.dispatch_message(message, author)
+
+        if message.startswith("&"):
             handle_mod_command(author, message)
