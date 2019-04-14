@@ -216,6 +216,28 @@ def handle_stats(bot, match, auth):
     else:
         send_message("ERROR - incorrect format: !stats <epic-username>")
 
+
+# added by colemanaitor
+@bot.on("!addclip\s*(.+)?", name="!addclip [link]")
+def add_clip(bot, match, auth):
+    """Add a clip to the clips.txt (feeds !randclip function)"""
+
+    # parse out the clip name from the link
+    clip_name = match.group(1)
+
+    # extract the twitch clip name from the url
+    clip_name = re.findall('clip/[a-zA-Z]+$|clip/[a-zA-Z]+/|clip/[a-zA-Z]+', clip_name)[0][5:] + '\n'
+
+    # append the clip_name to clips.txt
+    with open("clips.txt", "a") as myfile:
+        myfile.write(clip_name)
+
+# for testing of command above
+# bot.commands
+# bot.dispatch_message(msg = '!addclip https://www.twitch.tv/twitch/clip/RelatedFragileStarlingMikeHogu', auth = 'colemanaitor')
+
+
+
 @bot.on("^!help$", name="!help")
 def handle_help(bot, match, auth):
     """Print out the help text for all bot commands"""
