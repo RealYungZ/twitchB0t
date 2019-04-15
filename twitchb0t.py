@@ -225,16 +225,34 @@ def add_clip(bot, match, auth):
     # parse out the clip name from the link
     clip_name = match.group(1)
 
-    # extract the twitch clip name from the url
-    clip_name = re.findall('clip/[a-zA-Z]+$|clip/[a-zA-Z]+/|clip/[a-zA-Z]+', clip_name)[0][5:] + '\n'
+    # try to parse regex
+    try:
+        matches = re.findall('clip/[a-zA-Z]+$|clip/[a-zA-Z]+/|clip/[a-zA-Z]+|clips.twitch.tv/[a-zA-Z]+', clip_name)
 
-    # append the clip_name to clips.txt
-    with open("clips.txt", "a") as myfile:
-        myfile.write(clip_name)
+        # if clip valid
+        if not matches:
+            clip_name = matches[0][clip_name[0].find('/') + 1:]
 
-# for testing of command above
-# bot.commands
-# bot.dispatch_message(msg = '!addclip https://www.twitch.tv/twitch/clip/RelatedFragileStarlingMikeHogu', auth = 'colemanaitor')
+            # duplicate flag
+            already_in = False
+
+            # check to see if clip already in there
+            with open(CLIPS_PATH, "r") as file:
+                for lof in file:  # lof: line-of-file
+                    if lof == clip_name:
+                        already_in = True
+
+            # if clip name not in there add to file
+            if not already_in:
+                # append the clip_name to CLIPS_PATH
+                with open(CLIPS_PATH, "a") as myfile:
+                    myfile.write(clip_name + '\n')
+
+        else:
+            send_message(f"ERROR: could not get clip name from {match.group(1)}")
+
+    except:
+        send_message(f"ERROR: could not get clip name from {match.group(1)}")
 
 
 
