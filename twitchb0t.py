@@ -87,7 +87,7 @@ def get_fort_stats(epic_id):
     '''get fortnite stats based on an epic id'''
 
     req = request("https://fortnite-public-api.theapinetwork.com/prod09/users/public/br_stats_v2?user_id=" + epic_id)
-    print(req)
+
     if 'overallData' not in req:
         return None
     if 'defaultModes' in req['overallData']:
@@ -230,8 +230,8 @@ def add_clip(bot, match, auth):
         matches = re.findall('clip/[a-zA-Z]+$|clip/[a-zA-Z]+/|clip/[a-zA-Z]+|clips.twitch.tv/[a-zA-Z]+', clip_name)
 
         # if clip valid
-        if not matches:
-            clip_name = matches[0][clip_name[0].find('/') + 1:]
+        if matches:
+            clip_name = matches[0][matches[0].find('/') + 1:]
 
             # duplicate flag
             already_in = False
@@ -249,11 +249,10 @@ def add_clip(bot, match, auth):
                     myfile.write(clip_name + '\n')
 
         else:
-            send_message(f"ERROR: could not get clip name from {match.group(1)}")
+            send_message(f"ERROR: clip already in list, bro")
 
     except:
         send_message(f"ERROR: could not get clip name from {match.group(1)}")
-
 
 
 @bot.on("^!help$", name="!help")
@@ -294,14 +293,22 @@ sock.send(bytes("JOIN #" + NICK + "\r\n", "UTF-8"))
 
 while True:
     LINE = str(sock.recv(1024))
+    print(LINE)
     if "End of /NAMES list" in LINE:
         print("authenticated")
         break
 
+sock.send(bytes("CAP REQ :twitch.tv/membership\r\n", "UTF-8"))
+sock.send(bytes("CAP REQ :twitch.tv/tags\r\n", "UTF-8"))
+
 while True:
     for line in str(sock.recv(1024)).split('\\r\\n'):
         schedule.run_pending()
-        parts = line.split(':')
+        parts = line.split(':', 2)
+        print(parts)
+        if 'PING' in parts[0]:
+            sock.send(bytes("PONG :tmi.twitch.tv", "UTF-8"))
+
         if len(parts) < 3:
             continue
 
