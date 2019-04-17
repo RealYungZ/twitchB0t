@@ -60,7 +60,7 @@ def get_info():
     '''gets oauth token from file'''
 
     with open(INFO_PATH) as file:
-        return file.readlines()[0].rstrip()
+        return file.readlines()[1].rstrip()
 
 def get_rand_clip():
     '''gets a random line from clips.txt'''
@@ -106,7 +106,7 @@ def get_fort_stats(epic_id):
 def send_message(msg):
     '''sends a message to twitch chat'''
 
-    sock.send(bytes("PRIVMSG #" + NICK + " :" + msg + "\r\n", "UTF-8"))
+    conn.send(f"PRIVMSG #realyungz :{msg}\r\n".encode("utf-8"))
 
 def check_mod(name):
     '''checks for mod on a given twitch username'''
@@ -146,14 +146,17 @@ STATIC_COMMANDS = {
     "!mouse"    : Links.MOUSE,
     "!fortstats": Links.FORTSTATS,
     "!pc"       : Links.PC,
-    "!code"     : Links.CODE
+    "!code"     : Links.CODE,
+    "!age"      : '21',
+    "!name"     : 'Alex realyuSwag',
+    "!state"    : 'Michigan'
 }
 
 
 bot = Bot("z-bot")
 
 
-@bot.on("!hugme")
+@bot.on("^!hugme$")
 def handle_hugme(bot, match, auth):
     '''handle hugme command'''
 
@@ -261,6 +264,49 @@ def handle_help(bot, match, auth):
 
     send_message(", ".join(bot.commands))
 
+IRC_EXPR = re.compile("""
+  (@(?P<tags>\S+)\s+)?
+  (:(?P<prefix>\S+\s+))?
+  (?P<command>[^:\s]+)
+  (?P<params>(\s+[^:]\S*)*)
+  (?:\s+:(?P<message>.*))?
+""", re.VERBOSE)
+
+@dc.dataclass(frozen=True)
+class IRCMessage:
+    tags: dict
+    prefix: str
+    command: str
+    params: list
+    message: str
+
+def parse_tags(tags):
+    if not tags:
+        return {}
+    acc = {}
+    pairs = tags.split(";")
+    for pair in pairs:
+        kv = pair.split("=")
+        if len(kv) == 1:
+            acc[kv[0]] = None
+        else:
+            acc[kv[0]] = kv[1]
+    return acc
+
+def parse_line(message):
+    parsed = IRC_EXPR.match(message)
+    if not parsed:
+        return None
+
+    grp = parsed.group
+    tags = parse_tags((grp("tags") or "").strip())
+    prefix = (grp("prefix") or "").strip()
+    command = grp("command").strip().upper()
+    params = (grp("params") or "").strip().split()
+    message = (grp("message") or "").strip()
+
+    return IRCMessage(tags, prefix, command, params, message)
+
 for name, response in STATIC_COMMANDS.items():
     cmd = Command(name, name, "", handle_static(response))
     bot.commands[name] = cmd
@@ -277,48 +323,44 @@ else:
 
 HOST = "irc.twitch.tv"
 PORT = 6667
-NICK = "realyungz"
+NICK = "imasmartbot"
 PASS = get_info()
 START_TIME = time.time()
+DELIM = b"\r\n"
 
 schedule.every(8).to(12).minutes.do(youtube_timer)
 schedule.every(8).to(12).minutes.do(discord_timer)
 
-sock = socket.socket()
-sock.connect((HOST, PORT))
-sock.send(bytes("PASS " + PASS + "\r\n", "UTF-8"))
-sock.send(bytes("NICK " + NICK + "\r\n", "UTF-8"))
-sock.send(bytes("JOIN #" + NICK + "\r\n", "UTF-8"))
+conn = socket.socket()
+conn.connect((HOST, PORT))
 
+def send(message):
+  conn.send(message.encode("utf-8") + DELIM)
 
+send(f"PASS {PASS}")
+send(f"NICK {NICK}")
+send(f"CAP REQ :twitch.tv/tags")
+send(f"CAP REQ :twitch.tv/membership")
+send(f"JOIN #realyungz")
+
+buf = b""
 while True:
-    LINE = str(sock.recv(1024))
-    print(LINE)
-    if "End of /NAMES list" in LINE:
-        print("authenticated")
+    schedule.run_pending()
+    data = conn.recv(1024)
+    if not data:
         break
+    buf += data
+    *lines, buf = buf.split(b"\n")
+    for line in lines:
+        decoded = line.decode("utf-8").strip()
+        parsed = parse_line(decoded)
 
-sock.send(bytes("CAP REQ :twitch.tv/membership\r\n", "UTF-8"))
-sock.send(bytes("CAP REQ :twitch.tv/tags\r\n", "UTF-8"))
-
-while True:
-    for line in str(sock.recv(1024)).split('\\r\\n'):
-        schedule.run_pending()
-        parts = line.split(':', 2)
-        print(parts)
-        if 'PING' in parts[0]:
-            sock.send(bytes("PONG :tmi.twitch.tv", "UTF-8"))
-
-        if len(parts) < 3:
-            continue
-
-        if "QUIT" not in parts[1] and "JOIN" not in parts[1] and "PART" not in parts[1]:
-            message = parts[2][:len(parts[2])]
-        else:
-            continue
-
-        author = parts[1].split("!")[0]
-        bot.dispatch_message(message, author)
-
-        if message.startswith("&"):
-            handle_mod_command(author, message)
+        if parsed.command == "PRIVMSG":
+            chan = parsed.params[0]
+            user = parsed.prefix.split("!")[0]
+            print(f"[{chan}] {user}: {parsed.message}")
+            print(parsed.tags)
+            bot.dispatch_message(parsed.message, user)
+        elif parsed.command == "PING":
+            print("ping pong")
+            send("PONG :tmi.twitch.tv")

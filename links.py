@@ -8,4 +8,4 @@ class Links:
     MOUSE     = 'https://www.amazon.com/SteelSeries-Sensei-Gaming-Mouse-Split-Trigger/dp/B073WGB8G6'
     FORTSTATS = 'https://fortnitetracker.com/profile/pc/Twitch%20RealYungZ'
     PC        = 'GPU:  GeForce GTX 1070      CPU:  AMD Ryzen 7 1700X - 8 Core      RAM: Corsair Vengeance 16GB DDR4 3200MHz      SSD:  Western Digital 250GB'
-    CODE      = "https://github.com/RealYungZ/disc0rdb0t"
+    CODE      = "https://github.com/RealYungZ/twitchB0t"
